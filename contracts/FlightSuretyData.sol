@@ -9,6 +9,8 @@ contract FlightSuretyData {
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
 
+    mapping(address => uint256) authorizedContracts;
+
     address private contractOwner; // Account used to deploy contract
     bool private operational = true; // Blocks all state changes throughout the contract if false
 
@@ -49,6 +51,14 @@ contract FlightSuretyData {
         _;
     }
 
+    modifier requireCallerAuthorized() {
+        require(
+            authorizedContracts[msg.sender] == 1,
+            "Caller is not authorized"
+        );
+        _;
+    }
+
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
@@ -62,6 +72,11 @@ contract FlightSuretyData {
         return operational;
     }
 
+    // TODO(lukas)
+    function isAirline(address airline) public pure returns (bool) {
+        return false;
+    }
+
     /**
      * @dev Sets contract operations on/off
      *
@@ -69,6 +84,20 @@ contract FlightSuretyData {
      */
     function setOperatingStatus(bool mode) external requireContractOwner {
         operational = mode;
+    }
+
+    function authorizeContract(address dataContract)
+        external
+        requireContractOwner
+    {
+        authorizedContracts[dataContract] = 1;
+    }
+
+    function deauthorizeContract(address dataContract)
+        external
+        requireContractOwner
+    {
+        authorizedContracts[dataContract] = 0;
     }
 
     /********************************************************************************************/

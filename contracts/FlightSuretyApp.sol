@@ -60,6 +60,15 @@ contract FlightSuretyApp {
         _;
     }
 
+    //TODO(lukas)
+    modifier requireFunding() {
+        require(
+            msg.value > 10 ether,
+            "Not enough funding provided for registering an airline"
+        );
+        _;
+    }
+
     /********************************************************************************************/
     /*                                       CONSTRUCTOR                                        */
     /********************************************************************************************/
@@ -88,11 +97,13 @@ contract FlightSuretyApp {
      * @dev Add an airline to the registration queue
      *
      */
-    function registerAirline()
+    function registerAirline(address airline)
         external
         pure
-        returns (bool success, uint256 votes){
-        return (success, 0);
+        returns (bool success, uint256 votes)
+    {
+        //TODO(lukas) I need some code here
+        return (true, 0);
     }
 
     /**
@@ -124,10 +135,11 @@ contract FlightSuretyApp {
         bytes32 key = keccak256(
             abi.encodePacked(index, airline, flight, timestamp)
         );
-        oracleResponses[key] = ResponseInfo({
-            requester: msg.sender,
-            isOpen: true
-        });
+        oracleResponses[key] = createResponseInfo(msg.sender, true);
+        // oracleResponses[key] = ResponseInfo({
+        //     requester: msg.sender,
+        //     isOpen: true
+        // });
 
         emit OracleRequest(index, airline, flight, timestamp);
     }
@@ -149,7 +161,7 @@ contract FlightSuretyApp {
     }
 
     // Track all registered oracles
-    mapping(address => Oracle) private oracles;
+    mapping(address => Oracle) public oracles;
 
     // Model for responses from oracles
     struct ResponseInfo {
@@ -159,10 +171,23 @@ contract FlightSuretyApp {
         // This lets us group responses and identify
         // the response that majority of the oracles
     }
+    uint256 numResponseInfos;
+    mapping(uint256 => ResponseInfo) responseInfos;
+
+    function createResponseInfo(address requester, bool isOpen)
+        public
+        returns (uint256)
+    {
+        uint256 newInt = numResponseInfos++;
+        ResponseInfo storage r = responseInfos[numResponseInfos++];
+        r.requester = requester;
+        r.isOpen = isOpen;
+        return newInt;
+    }
 
     // Track all oracle responses
     // Key = hash(index, flight, timestamp)
-    mapping(bytes32 => ResponseInfo) private oracleResponses;
+    mapping(bytes32 => uint256) private oracleResponses;
 
     // Event fired each time an oracle submits a response
     event FlightStatusInfo(
@@ -199,6 +224,11 @@ contract FlightSuretyApp {
         oracles[msg.sender] = Oracle({isRegistered: true, indexes: indexes});
     }
 
+    function isOracleRegistered(address oracle) public view returns (bool){
+        return oracles[oracle].isRegistered;
+
+    }
+
     function getMyIndexes() external view returns (uint8[3] memory) {
         require(
             oracles[msg.sender].isRegistered,
@@ -230,17 +260,20 @@ contract FlightSuretyApp {
             abi.encodePacked(index, airline, flight, timestamp)
         );
         require(
-            oracleResponses[key].isOpen,
+            responseInfos[oracleResponses[key]].isOpen,
             "Flight or timestamp do not match oracle request"
         );
 
-        oracleResponses[key].responses[statusCode].push(msg.sender);
+        responseInfos[oracleResponses[key]].responses[statusCode].push(
+            msg.sender
+        );
 
         // Information isn't considered verified until at least MIN_RESPONSES
         // oracles respond with the *** same *** information
         emit OracleReport(airline, flight, timestamp, statusCode);
         if (
-            oracleResponses[key].responses[statusCode].length >= MIN_RESPONSES
+            responseInfos[oracleResponses[key]].responses[statusCode].length >=
+            MIN_RESPONSES
         ) {
             emit FlightStatusInfo(airline, flight, timestamp, statusCode);
 
@@ -258,7 +291,10 @@ contract FlightSuretyApp {
     }
 
     // Returns array of three non-duplicating integers from 0-9
-    function generateIndexes(address account) internal returns (uint8[3] memory) {
+    function generateIndexes(address account)
+        internal
+        returns (uint8[3] memory)
+    {
         uint8[3] memory indexes;
         indexes[0] = getRandomIndex(account);
 
